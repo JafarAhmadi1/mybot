@@ -121,7 +121,8 @@
             <canvas id="image-canvas"></canvas>
             <img id="result-image" alt="تصویر نهایی با قاب">
             <div>
-                <a id="download-link" class="action-button" download="parcham-bala-profile.png">دانلود تصویر</a>
+                <!-- تگ a برای دانلود باقی می‌ماند اما عملکرد آن با جاوااسکریپت کنترل می‌شود -->
+                <a id="download-link" href="#" class="action-button">دانلود تصویر</a>
                 <!-- دکمه جدید برای شروع مجدد -->
                 <button id="restart-button" class="action-button">شروع مجدد</button>
             </div>
@@ -156,20 +157,59 @@
             const canvas = document.getElementById('image-canvas');
             const resultImage = document.getElementById('result-image');
             const downloadLink = document.getElementById('download-link');
-            const restartButton = document.getElementById('restart-button'); // دکمه جدید
+            const restartButton = document.getElementById('restart-button');
             
             let userImageObjectUrl = null;
+            let finalImageBlob = null; // متغیر برای نگهداری فایل نهایی
 
             // اتصال رویدادها
             uploadInput.addEventListener('change', handleImageUpload);
             restartButton.addEventListener('click', resetApp);
             
-            // اگر در محیط ایتا هستیم، دکمه اصلی را هم تنظیم کن
             if (isEitaaEnv) {
                 EitaaApp.MainButton.setText("شروع مجدد");
                 EitaaApp.MainButton.onClick(resetApp);
-                EitaaApp.MainButton.hide(); // در ابتدا مخفی باشد
+                EitaaApp.MainButton.hide();
             }
+
+            /**
+             * تابع دانلود فایل بر اساس منطق درخواستی شما
+             * این تابع یک شیء Blob دریافت کرده و دانلود آن را آغاز می‌کند
+             */
+            function downloadBlobDirectly(blob) {
+                try {
+                    const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+                    const fileName = `parcham-bala-${timestamp}.png`;
+                    
+                    // ایجاد یک لینک موقت در حافظه برای دانلود
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.style.display = 'none';
+                    a.href = url;
+                    a.download = fileName; // این خط به مرورگر می‌گوید فایل را دانلود کند
+                    document.body.appendChild(a);
+                    
+                    a.click(); // شبیه‌سازی کلیک روی لینک برای شروع دانلود
+                    
+                    // پاک‌سازی
+                    URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+
+                } catch (error) {
+                    statusDiv.innerText = `❌ خطا در هنگام ایجاد فایل دانلود: ${error.message}`;
+                    console.error("Download Error:", error);
+                }
+            }
+            
+            // افزودن رویداد کلیک به دکمه دانلود
+            downloadLink.addEventListener('click', (event) => {
+                event.preventDefault(); // جلوگیری از رفتار پیش‌فرض لینک
+                if (finalImageBlob) {
+                    downloadBlobDirectly(finalImageBlob);
+                } else {
+                    alert("خطایی رخ داده است. لطفاً دوباره تلاش کنید.");
+                }
+            });
 
             function handleImageUpload(event) {
                 const file = event.target.files[0];
@@ -185,7 +225,6 @@
             }
 
             function showFrameSelection() {
-                // پاک کردن قاب‌های قبلی
                 frameSelectionDiv.innerHTML = '<p style="margin-top:20px;">۲. یکی از قاب‌های زیر را انتخاب کنید:</p>';
                 Object.keys(FRAME_IMAGE_URLS).forEach((key, index) => {
                     const button = document.createElement('button');
@@ -213,51 +252,46 @@
 
                 try {
                     const [userImg, frameImg] = await Promise.all([loadImage(userImageUrl), loadImage(frameUrl)]);
-
                     const size = 512;
                     canvas.width = size;
                     canvas.height = size;
-
-                    // --- شروع منطق برش از مرکز ---
+                    
                     const imgAspectRatio = userImg.naturalWidth / userImg.naturalHeight;
-                    const canvasAspectRatio = size / size; // که برابر است با 1
-
-                    let drawWidth = size;
-                    let drawHeight = size;
-                    let x = 0;
-                    let y = 0;
-
+                    const canvasAspectRatio = 1;
+                    let drawWidth = size, drawHeight = size, x = 0, y = 0;
                     if (imgAspectRatio > canvasAspectRatio) {
-                        // تصویر عریض‌تر از کادر است (باید از چپ و راست برش بخورد)
                         drawHeight = size;
                         drawWidth = drawHeight * imgAspectRatio;
                         x = (size - drawWidth) / 2;
-                        y = 0;
                     } else {
-                        // تصویر بلندتر از کادر است (باید از بالا و پایین برش بخورد)
                         drawWidth = size;
                         drawHeight = drawWidth / imgAspectRatio;
-                        x = 0;
                         y = (size - drawHeight) / 2;
                     }
-
                     ctx.drawImage(userImg, x, y, drawWidth, drawHeight);
-                    // --- پایان منطق برش از مرکز ---
-
-                    // قاب را روی آن می‌کشیم
                     ctx.drawImage(frameImg, 0, 0, size, size);
 
-                    const finalImageDataUrl = canvas.toDataURL('image/png');
-                    resultImage.src = finalImageDataUrl;
-                    downloadLink.href = finalImageDataUrl;
+                    // **تغییر اصلی**: تبدیل بوم به Blob و نمایش آن
+                    canvas.toBlob(blob => {
+                        if (!blob) {
+                            throw new Error("خطا در ساخت فایل تصویر");
+                        }
+                        finalImageBlob = blob; // ذخیره Blob برای دانلود
 
-                    frameSelectionDiv.style.display = 'none';
-                    statusDiv.style.display = 'none';
-                    resultContainer.style.display = 'block';
+                        // برای نمایش تصویر، یک URL موقت از Blob می‌سازیم
+                        if (resultImage.src) URL.revokeObjectURL(resultImage.src);
+                        resultImage.src = URL.createObjectURL(blob);
+                        
+                        // نمایش نتیجه
+                        frameSelectionDiv.style.display = 'none';
+                        statusDiv.style.display = 'none';
+                        resultContainer.style.display = 'block';
 
-                    if (isEitaaEnv) {
-                        EitaaApp.MainButton.show();
-                    }
+                        if (isEitaaEnv) {
+                            EitaaApp.MainButton.show();
+                        }
+                    }, 'image/png');
+
                 } catch (error) {
                     statusDiv.innerText = "خطا در بارگذاری تصاویر. لطفاً از اتصال اینترنت خود مطمئن شوید و دوباره تلاش کنید.";
                     console.error("Image loading error:", error);
@@ -265,24 +299,26 @@
                 }
             }
 
-
-            // تابع کامل برای ریست کردن برنامه
             function resetApp() {
-                // نمایش و مخفی کردن عناصر
                 uploadButton.style.display = 'inline-block';
                 frameSelectionDiv.style.display = 'none';
                 resultContainer.style.display = 'none';
                 statusDiv.style.display = 'block';
                 statusDiv.innerText = '';
                 
-                // پاک کردن داده‌های قبلی
                 uploadInput.value = '';
                 if (userImageObjectUrl) {
                     URL.revokeObjectURL(userImageObjectUrl);
                     userImageObjectUrl = null;
                 }
                 
-                // مخفی کردن دکمه اصلی ایتا
+                // پاک کردن Blob و URL موقت آن
+                if (resultImage.src) {
+                    URL.revokeObjectURL(resultImage.src);
+                    resultImage.src = "";
+                }
+                finalImageBlob = null;
+                
                 if (isEitaaEnv) {
                     EitaaApp.MainButton.hide();
                 }
