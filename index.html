@@ -55,7 +55,7 @@
             font-weight: bold;
             cursor: pointer;
             transition: background-color 0.2s;
-            text-decoration: none; /* برای تگ <a> */
+            text-decoration: none;
             margin-left: 5px;
             margin-right: 5px;
         }
@@ -92,7 +92,7 @@
         #status {
             margin-top: 15px;
             font-weight: bold;
-            min-height: 24px; /* برای جلوگیری از پرش صفحه */
+            min-height: 24px;
         }
 
     </style>
@@ -103,27 +103,21 @@
         <h1>🇮🇷 پویش پرچم بالا</h1>
         <p> سلام به پویش پرچم بالا خوش آومدید.برای حمایت از *ایران جان* و برای تزئین تصویرتون با پرچم سه رنگ ایران عزیز، لطفا تصویر پروفایلتون رو ارسال کنید.</p>
         
-        <!-- مرحله ۱: دکمه برای انتخاب عکس -->
         <label for="image-upload" class="action-button" id="upload-button">۱. انتخاب تصویر پروفایل</label>
         <input type="file" id="image-upload" accept="image/*">
 
-        <!-- مرحله ۲: انتخاب قاب (در ابتدا مخفی است) -->
         <div id="frame-selection" style="display: none;">
             <p style="margin-top:20px;">۲. یکی از قاب‌های زیر را انتخاب کنید:</p>
         </div>
 
-        <!-- نمایش وضعیت پردازش -->
         <div id="status"></div>
 
-        <!-- مرحله ۳: نمایش نتیجه (در ابتدا مخفی است) -->
         <div id="result-container" style="display: none;">
             <h3>تصویر شما آماده شد!</h3>
             <canvas id="image-canvas"></canvas>
             <img id="result-image" alt="تصویر نهایی با قاب">
             <div>
-                <!-- تگ a برای دانلود باقی می‌ماند اما عملکرد آن با جاوااسکریپت کنترل می‌شود -->
                 <a id="download-link" href="#" class="action-button">دانلود تصویر</a>
-                <!-- دکمه جدید برای شروع مجدد -->
                 <button id="restart-button" class="action-button">شروع مجدد</button>
             </div>
         </div>
@@ -160,38 +154,31 @@
             const restartButton = document.getElementById('restart-button');
             
             let userImageObjectUrl = null;
-            let finalImageBlob = null; // متغیر برای نگهداری فایل نهایی
+            let finalImageBlob = null;
 
-            // اتصال رویدادها
             uploadInput.addEventListener('change', handleImageUpload);
             restartButton.addEventListener('click', resetApp);
             
             if (isEitaaEnv) {
-                EitaaApp.MainButton.setText("شروع مجدد");
-                EitaaApp.MainButton.onClick(resetApp);
+                // دکمه شروع مجدد را می‌توان به صورت جداگانه مدیریت کرد
+                // اما دکمه اصلی در زمان نمایش نتیجه، عملکرد دانلود خواهد داشت
                 EitaaApp.MainButton.hide();
             }
 
-            /**
-             * تابع دانلود فایل بر اساس منطق درخواستی شما
-             * این تابع یک شیء Blob دریافت کرده و دانلود آن را آغاز می‌کند
-             */
             function downloadBlobDirectly(blob) {
                 try {
                     const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
-                    const fileName = `parcham-bala-${timestamp}.jpg`;
+                    const fileName = `parcham-bala-${timestamp}.png`;
                     
-                    // ایجاد یک لینک موقت در حافظه برای دانلود
                     const url = URL.createObjectURL(blob);
                     const a = document.createElement('a');
                     a.style.display = 'none';
                     a.href = url;
-                    a.download = fileName; // این خط به مرورگر می‌گوید فایل را دانلود کند
+                    a.download = fileName;
                     document.body.appendChild(a);
                     
-                    a.click(); // شبیه‌سازی کلیک روی لینک برای شروع دانلود
+                    a.click();
                     
-                    // پاک‌سازی
                     URL.revokeObjectURL(url);
                     document.body.removeChild(a);
 
@@ -201,9 +188,8 @@
                 }
             }
             
-            // افزودن رویداد کلیک به دکمه دانلود
             downloadLink.addEventListener('click', (event) => {
-                event.preventDefault(); // جلوگیری از رفتار پیش‌فرض لینک
+                event.preventDefault();
                 if (finalImageBlob) {
                     downloadBlobDirectly(finalImageBlob);
                 } else {
@@ -271,25 +257,29 @@
                     ctx.drawImage(userImg, x, y, drawWidth, drawHeight);
                     ctx.drawImage(frameImg, 0, 0, size, size);
 
-                    // **تغییر اصلی**: تبدیل بوم به Blob و نمایش آن
                     canvas.toBlob(blob => {
-                        if (!blob) {
-                            throw new Error("خطا در ساخت فایل تصویر");
-                        }
-                        finalImageBlob = blob; // ذخیره Blob برای دانلود
+                        if (!blob) throw new Error("خطا در ساخت فایل تصویر");
+                        
+                        finalImageBlob = blob;
 
-                        // برای نمایش تصویر، یک URL موقت از Blob می‌سازیم
                         if (resultImage.src) URL.revokeObjectURL(resultImage.src);
                         resultImage.src = URL.createObjectURL(blob);
                         
-                        // نمایش نتیجه
                         frameSelectionDiv.style.display = 'none';
                         statusDiv.style.display = 'none';
                         resultContainer.style.display = 'block';
 
+                        // --- شروع بخش مربوط به دکمه اصلی ایتا ---
                         if (isEitaaEnv) {
+                            EitaaApp.MainButton.setText("✅ دانلود تصویر");
+                            // با کلیک روی دکمه اصلی، دکمه دانلود داخل صفحه را فرامی‌خوانیم
+                            EitaaApp.MainButton.onClick(() => {
+                                document.getElementById('download-link').click();
+                            });
                             EitaaApp.MainButton.show();
                         }
+                        // --- پایان بخش مربوط به دکمه اصلی ایتا ---
+
                     }, 'image/png');
 
                 } catch (error) {
@@ -312,7 +302,6 @@
                     userImageObjectUrl = null;
                 }
                 
-                // پاک کردن Blob و URL موقت آن
                 if (resultImage.src) {
                     URL.revokeObjectURL(resultImage.src);
                     resultImage.src = "";
